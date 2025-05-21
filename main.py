@@ -2,9 +2,7 @@ import streamlit as st
 import json
 import re
 import pandas as pd
-import os
 from typing import List, Dict, Any
-import streamlit.components.v1 as components
 
 st.set_page_config(
     page_title="Tamil Lessons Search", 
@@ -29,13 +27,14 @@ st.markdown("""
         font-weight: bold;
         color: #1f77b4;
     }
-    .thanglish-converter {
-        border: 1px solid #ddd;
-        border-radius: 5px;
-        margin: 10px 0;
-    }
     .stButton>button {
         width: 100%;
+    }
+    .thanglish-box {
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 10px;
+        background-color: #f9f9f9;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -45,8 +44,77 @@ if 'files_data' not in st.session_state:
     st.session_state.files_data = {}
 if 'current_file' not in st.session_state:
     st.session_state.current_file = None
-if 'converted_text' not in st.session_state:
-    st.session_state.converted_text = ""
+if 'tanglish_map' not in st.session_state:
+    # Simple Tanglish to Tamil mapping for common characters
+    st.session_state.tanglish_map = {
+        'a': 'அ', 'aa': 'ஆ', 'i': 'இ', 'ee': 'ஈ', 'u': 'உ', 'oo': 'ஊ',
+        'e': 'எ', 'ae': 'ஏ', 'ai': 'ஐ', 'o': 'ஒ', 'oa': 'ஓ', 'au': 'ஔ',
+        'k': 'க்', 'ka': 'க', 'kaa': 'கா', 'ki': 'கி', 'kee': 'கீ',
+        'ku': 'கு', 'koo': 'கூ', 'ke': 'கெ', 'kae': 'கே', 'kai': 'கை',
+        'ko': 'கொ', 'koa': 'கோ', 'kau': 'கௌ',
+        'ng': 'ங்', 'nga': 'ங', 'ngaa': 'ஙா',
+        'c': 'ச்', 'ch': 'ச்', 'sa': 'ச', 'saa': 'சா', 'si': 'சி', 'see': 'சீ',
+        'su': 'சு', 'soo': 'சூ', 'se': 'செ', 'sae': 'சே', 'sai': 'சை',
+        'so': 'சொ', 'soa': 'சோ', 'sau': 'சௌ',
+        'nj': 'ஞ்', 'nja': 'ஞ', 'njaa': 'ஞா',
+        't': 'ட்', 'ta': 'ட', 'taa': 'டா', 'ti': 'டி', 'tee': 'டீ',
+        'tu': 'டு', 'too': 'டூ', 'te': 'டெ', 'tae': 'டே', 'tai': 'டை',
+        'to': 'டொ', 'toa': 'டோ', 'tau': 'டௌ',
+        'nt': 'ண்', 'nta': 'ண', 'ntaa': 'ணா',
+        'th': 'த்', 'tha': 'த', 'thaa': 'தா', 'thi': 'தி', 'thee': 'தீ',
+        'thu': 'து', 'thoo': 'தூ', 'the': 'தெ', 'thae': 'தே', 'thai': 'தை',
+        'tho': 'தொ', 'thoa': 'தோ', 'thau': 'தௌ',
+        'n': 'ந்', 'na': 'ந', 'naa': 'நா', 'ni': 'நி', 'nee': 'நீ',
+        'nu': 'நு', 'noo': 'நூ', 'ne': 'நெ', 'nae': 'நே', 'nai': 'நை',
+        'no': 'நொ', 'noa': 'நோ', 'nau': 'நௌ',
+        'p': 'ப்', 'pa': 'ப', 'paa': 'பா', 'pi': 'பி', 'pee': 'பீ',
+        'pu': 'பு', 'poo': 'பூ', 'pe': 'பெ', 'pae': 'பே', 'pai': 'பை',
+        'po': 'பொ', 'poa': 'போ', 'pau': 'பௌ',
+        'm': 'ம்', 'ma': 'ம', 'maa': 'மா', 'mi': 'மி', 'mee': 'மீ',
+        'mu': 'மு', 'moo': 'மூ', 'me': 'மெ', 'mae': 'மே', 'mai': 'மை',
+        'mo': 'மொ', 'moa': 'மோ', 'mau': 'மௌ',
+        'y': 'ய்', 'ya': 'ய', 'yaa': 'யா', 'yi': 'யி', 'yee': 'யீ',
+        'yu': 'யு', 'yoo': 'யூ', 'ye': 'யெ', 'yae': 'யே', 'yai': 'யை',
+        'yo': 'யொ', 'yoa': 'யோ', 'yau': 'யௌ',
+        'r': 'ர்', 'ra': 'ர', 'raa': 'ரா', 'ri': 'ரி', 'ree': 'ரீ',
+        'ru': 'ரு', 'roo': 'ரூ', 're': 'ரெ', 'rae': 'ரே', 'rai': 'ரை',
+        'ro': 'ரொ', 'roa': 'ரோ', 'rau': 'ரௌ',
+        'l': 'ல்', 'la': 'ல', 'laa': 'லா', 'li': 'லி', 'lee': 'லீ',
+        'lu': 'லு', 'loo': 'லூ', 'le': 'லெ', 'lae': 'லே', 'lai': 'லை',
+        'lo': 'லொ', 'loa': 'லோ', 'lau': 'லௌ',
+        'v': 'வ்', 'va': 'வ', 'vaa': 'வா', 'vi': 'வி', 'vee': 'வீ',
+        'vu': 'வு', 'voo': 'வூ', 've': 'வெ', 'vae': 'வே', 'vai': 'வை',
+        'vo': 'வொ', 'voa': 'வோ', 'vau': 'வௌ',
+        'zh': 'ழ்', 'zha': 'ழ', 'zhaa': 'ழா', 'zhi': 'ழி', 'zhee': 'ழீ',
+        'zhu': 'ழு', 'zhoo': 'ழூ', 'zhe': 'ழெ', 'zhae': 'ழே', 'zhai': 'ழை',
+        'zho': 'ழொ', 'zhoa': 'ழோ', 'zhau': 'ழௌ',
+        'L': 'ள்', 'La': 'ள', 'Laa': 'ளா', 'Li': 'ளி', 'Lee': 'ளீ',
+        'Lu': 'ளு', 'Loo': 'ளூ', 'Le': 'ளெ', 'Lae': 'ளே', 'Lai': 'ளை',
+        'Lo': 'ளொ', 'Loa': 'ளோ', 'Lau': 'ளௌ',
+        'R': 'ற்', 'Ra': 'ற', 'Raa': 'றா', 'Ri': 'றி', 'Ree': 'றீ',
+        'Ru': 'று', 'Roo': 'றூ', 'Re': 'றெ', 'Rae': 'றே', 'Rai': 'றை',
+        'Ro': 'றொ', 'Roa': 'றோ', 'Rau': 'றௌ',
+        'N': 'ன்', 'Na': 'ன', 'Naa': 'னா', 'Ni': 'னி', 'Nee': 'னீ',
+        'Nu': 'னு', 'Noo': 'னூ', 'Ne': 'னெ', 'Nae': 'னே', 'Nai': 'னை',
+        'No': 'னொ', 'Noa': 'னோ', 'Nau': 'னௌ',
+        'j': 'ஜ்', 'ja': 'ஜ', 'jaa': 'ஜா', 'ji': 'ஜி', 'jee': 'ஜீ',
+        'ju': 'ஜு', 'joo': 'ஜூ', 'je': 'ஜெ', 'jae': 'ஜே', 'jai': 'ஜை',
+        'jo': 'ஜொ', 'joa': 'ஜோ', 'jau': 'ஜௌ',
+        'sh': 'ஷ்', 'sha': 'ஷ', 'shaa': 'ஷா', 'shi': 'ஷி', 'shee': 'ஷீ',
+        'shu': 'ஷு', 'shoo': 'ஷூ', 'she': 'ஷெ', 'shae': 'ஷே', 'shai': 'ஷை',
+        'sho': 'ஷொ', 'shoa': 'ஷோ', 'shau': 'ஷௌ',
+        'S': 'ஸ்', 'Sa': 'ஸ', 'Saa': 'ஸா', 'Si': 'ஸி', 'See': 'ஸீ',
+        'Su': 'ஸு', 'Soo': 'ஸூ', 'Se': 'ஸெ', 'Sae': 'ஸே', 'Sai': 'ஸை',
+        'So': 'ஸொ', 'Soa': 'ஸோ', 'Sau': 'ஸௌ',
+        'h': 'ஹ்', 'ha': 'ஹ', 'haa': 'ஹா', 'hi': 'ஹி', 'hee': 'ஹீ',
+        'hu': 'ஹு', 'hoo': 'ஹூ', 'he': 'ஹெ', 'hae': 'ஹே', 'hai': 'ஹை',
+        'ho': 'ஹொ', 'hoa': 'ஹோ', 'hau': 'ஹௌ',
+    }
+
+if 'tanglish_input' not in st.session_state:
+    st.session_state.tanglish_input = ""
+if 'tamil_output' not in st.session_state:
+    st.session_state.tamil_output = ""
 
 def load_json_file(uploaded_file):
     """Load and parse the uploaded JSON file."""
@@ -112,7 +180,7 @@ def search_in_data(data: List[Dict[str, Any]], search_query: str, selected_field
             if "explanation" in selected_fields:
                 fields_to_search["explanation"] = explanation.lower()
             
-            # Check if all search terms exist in any of the selected fields
+            # Check if any search term exists in any of the selected fields
             match_found = False
             
             # For OR search (any term matches)
@@ -168,6 +236,79 @@ def display_results(results, search_query):
             st.markdown(f"<div class='field-label'>Explanation:</div> {highlighted_explanation}", unsafe_allow_html=True)
             st.markdown(f"<div class='field-label'>Syllabus Area:</div> {highlighted_syllabus}", unsafe_allow_html=True)
 
+def convert_tanglish_to_tamil(text):
+    """
+    A simple Tanglish to Tamil converter.
+    This is a very basic implementation and won't handle all cases correctly.
+    """
+    result = ""
+    i = 0
+    while i < len(text):
+        # Try to match longer patterns first, then shorter ones
+        matched = False
+        for length in range(4, 0, -1):  # Try matching 4, 3, 2, 1 characters
+            if i + length <= len(text):
+                substr = text[i:i+length]
+                if substr in st.session_state.tanglish_map:
+                    result += st.session_state.tanglish_map[substr]
+                    i += length
+                    matched = True
+                    break
+        
+        # If no match found, just add the character as is
+        if not matched:
+            result += text[i]
+            i += 1
+    
+    return result
+
+def tanglish_converter():
+    """Simple Tanglish to Tamil converter UI."""
+    st.markdown("<div class='thanglish-box'>", unsafe_allow_html=True)
+    st.subheader("Tanglish to Tamil Converter")
+    
+    # Input for Tanglish text
+    tanglish_input = st.text_area(
+        "Type your Tanglish text here:",
+        value=st.session_state.tanglish_input,
+        key="tanglish_converter_input",
+        height=100
+    )
+    
+    # Convert button
+    if st.button("Convert to Tamil"):
+        st.session_state.tanglish_input = tanglish_input
+        st.session_state.tamil_output = convert_tanglish_to_tamil(tanglish_input)
+    
+    # Display Tamil output
+    st.text_area(
+        "Tamil text (copy this to search box):",
+        value=st.session_state.tamil_output,
+        height=100,
+        key="tamil_output_field"
+    )
+    
+    # Quick Tamil characters reference
+    with st.expander("Common Tamil Characters Reference"):
+        st.markdown("""
+        ### Vowels
+        - a = அ, aa = ஆ, i = இ, ee = ஈ
+        - u = உ, oo = ஊ, e = எ, ae = ஏ
+        - ai = ஐ, o = ஒ, oa = ஓ, au = ஔ
+        
+        ### Consonants + a
+        - ka = க, sa/cha = ச, ta = ட, tha = த
+        - pa = ப, ma = ம, ya = ய, ra = ர
+        - la = ல, va = வ, zha = ழ
+        
+        ### Example Words
+        - thamizh = தமிழ்
+        - vanakkam = வணக்கம்
+        - enna = என்ன
+        """)
+    
+    st.markdown("</div>", unsafe_allow_html=True)
+
 def main():
     # Sidebar for file management
     with st.sidebar:
@@ -205,22 +346,12 @@ def main():
                 st.experimental_rerun()
         else:
             st.info("No files uploaded yet.")
-            
-        # Thanglish to Tamil converter in sidebar
-        st.subheader("Thanglish to Tamil")
-        st.markdown("Use this tool to convert English keyboard input to Tamil:")
-        components.iframe("https://www.easytyping.com/tamil-typing", height=400)
+        
+        # Add Tanglish converter in sidebar
+        tanglish_converter()
     
     # Main content area
     st.title("Tamil Lessons Search Tool")
-    
-    # Add a compact Thanglish to Tamil converter in the main area for easy access
-    with st.expander("Thanglish to Tamil Converter"):
-        st.markdown("""
-        Use this converter to type in Thanglish (Tamil words using English letters) 
-        and convert to Tamil script. This makes searching easier when using an English keyboard.
-        """)
-        components.iframe("https://www.easytyping.com/tamil-typing", height=500)
     
     if st.session_state.current_file:
         current_data = st.session_state.files_data[st.session_state.current_file]
@@ -241,10 +372,20 @@ def main():
         # Select fields to search in
         col1, col2 = st.columns([3, 1])
         with col1:
-            search_query = st.text_input("Enter keywords to search (Tamil or English)", key="search_input")
-            st.markdown("""
-            <small>You can use the Thanglish to Tamil converter above to convert English keyboard input to Tamil before searching.</small>
-            """, unsafe_allow_html=True)
+            search_query = st.text_input(
+                "Enter keywords to search (Tamil or English)", 
+                key="search_input",
+                help="You can copy Tamil text from the converter in the sidebar"
+            )
+            
+            # Option to use Tamil output from converter
+            if st.session_state.tamil_output:
+                if st.button("Use converted Tamil text for search"):
+                    search_query = st.session_state.tamil_output
+                    # This is a trick to update the text input field
+                    st.experimental_set_query_params(search=search_query)
+                    st.experimental_rerun()
+            
         with col2:
             search_fields = st.multiselect(
                 "Fields to search",
@@ -297,9 +438,10 @@ def main():
         st.subheader("How to Use This App")
         st.markdown("""
         1. **Upload your JSON files** using the file uploader in the sidebar.
-        2. **Convert Thanglish to Tamil** using the converter in the sidebar or expander.
-        3. **Search through your data** by entering keywords and selecting which fields to search in.
-        4. **View the results** with highlighted matching terms.
+        2. **Convert Tanglish to Tamil** using the converter in the sidebar.
+        3. **Copy the Tamil text** from the converter and paste it into the search box.
+        4. **Search through your data** by entering keywords and selecting which fields to search in.
+        5. **View the results** with highlighted matching terms.
         
         This app helps you easily search through Tamil lessons content even if you have an English keyboard.
         """)
