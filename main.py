@@ -4,6 +4,7 @@ import re
 import pandas as pd
 import os
 from typing import List, Dict, Any
+import streamlit.components.v1 as components
 
 st.set_page_config(
     page_title="Tamil Lessons Search", 
@@ -28,6 +29,14 @@ st.markdown("""
         font-weight: bold;
         color: #1f77b4;
     }
+    .thanglish-converter {
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        margin: 10px 0;
+    }
+    .stButton>button {
+        width: 100%;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -36,6 +45,8 @@ if 'files_data' not in st.session_state:
     st.session_state.files_data = {}
 if 'current_file' not in st.session_state:
     st.session_state.current_file = None
+if 'converted_text' not in st.session_state:
+    st.session_state.converted_text = ""
 
 def load_json_file(uploaded_file):
     """Load and parse the uploaded JSON file."""
@@ -57,8 +68,14 @@ def highlight_text(text, search_query):
     if not search_query or not text:
         return text
     
-    pattern = re.compile(f"({re.escape(search_query)})", re.IGNORECASE)
-    highlighted = pattern.sub(r'<span class="highlight">\1</span>', text)
+    # Create a list of search terms if multiple words are provided
+    search_terms = search_query.lower().split()
+    
+    highlighted = text
+    for term in search_terms:
+        pattern = re.compile(f"({re.escape(term)})", re.IGNORECASE)
+        highlighted = pattern.sub(r'<span class="highlight">\1</span>', highlighted)
+    
     return highlighted
 
 def search_in_data(data: List[Dict[str, Any]], search_query: str, selected_fields: List[str]):
@@ -188,9 +205,22 @@ def main():
                 st.experimental_rerun()
         else:
             st.info("No files uploaded yet.")
+            
+        # Thanglish to Tamil converter in sidebar
+        st.subheader("Thanglish to Tamil")
+        st.markdown("Use this tool to convert English keyboard input to Tamil:")
+        components.iframe("https://www.easytyping.com/tamil-typing", height=400)
     
     # Main content area
     st.title("Tamil Lessons Search Tool")
+    
+    # Add a compact Thanglish to Tamil converter in the main area for easy access
+    with st.expander("Thanglish to Tamil Converter"):
+        st.markdown("""
+        Use this converter to type in Thanglish (Tamil words using English letters) 
+        and convert to Tamil script. This makes searching easier when using an English keyboard.
+        """)
+        components.iframe("https://www.easytyping.com/tamil-typing", height=500)
     
     if st.session_state.current_file:
         current_data = st.session_state.files_data[st.session_state.current_file]
@@ -211,7 +241,10 @@ def main():
         # Select fields to search in
         col1, col2 = st.columns([3, 1])
         with col1:
-            search_query = st.text_input("Enter keywords to search", key="search_input")
+            search_query = st.text_input("Enter keywords to search (Tamil or English)", key="search_input")
+            st.markdown("""
+            <small>You can use the Thanglish to Tamil converter above to convert English keyboard input to Tamil before searching.</small>
+            """, unsafe_allow_html=True)
         with col2:
             search_fields = st.multiselect(
                 "Fields to search",
@@ -220,7 +253,17 @@ def main():
                 key="search_fields"
             )
         
-        # Perform search when query is provided
+        # Include a dedicated search button for better UX
+        if st.button("Search", key="search_button"):
+            if search_query and search_fields:
+                results = search_in_data(current_data, search_query, search_fields)
+                display_results(results, search_query)
+            elif search_query and not search_fields:
+                st.warning("Please select at least one field to search in.")
+            elif not search_query:
+                st.warning("Please enter a search term.")
+        
+        # Alternative search with Enter key
         if search_query and search_fields:
             results = search_in_data(current_data, search_query, search_fields)
             display_results(results, search_query)
@@ -249,6 +292,16 @@ def main():
             // Additional lessons
         ]
         ```
+        """)
+        
+        st.subheader("How to Use This App")
+        st.markdown("""
+        1. **Upload your JSON files** using the file uploader in the sidebar.
+        2. **Convert Thanglish to Tamil** using the converter in the sidebar or expander.
+        3. **Search through your data** by entering keywords and selecting which fields to search in.
+        4. **View the results** with highlighted matching terms.
+        
+        This app helps you easily search through Tamil lessons content even if you have an English keyboard.
         """)
 
 if __name__ == "__main__":
